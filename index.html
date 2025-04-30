@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Draw a Perfect Circle</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.0.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #000;
+            color: #fff;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100vh;
+            touch-action: none;
+        }
+        
+        .logo {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .sound-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 10;
+        }
+        
+        .info-icon {
+            position: absolute;
+            top: 20px;
+            right: 70px;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 10;
+        }
+        
+        .game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        
+        .center-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #fff;
+            border-radius: 50%;
+            position: absolute;
+            z-index: 5;
+        }
+        
+        .score-container {
+            position: absolute;
+            font-size: 24px;
+            color: #f00;
+            font-weight: bold;
+            text-align: center;
+            display: none;
+        }
+        
+        .instruction {
+            position: absolute;
+            bottom: -80px;
+            font-size: 18px;
+            text-align: center;
+            opacity: 0.9;
+        }
+        
+        .best-score {
+            position: absolute;
+            bottom: -80px;
+            font-size: 18px;
+            text-align: center;
+            display: none;
+            opacity: 0.9;
+        }
+        
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+        }
+        
+        .success-background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #4B0082;
+            opacity: 0;
+            transition: opacity 0.5s;
+            z-index: 1;
+        }
+        
+        .popup {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            visibility: hidden;
+            opacity: 0;
+            transition: visibility 0s, opacity 0.3s linear;
+        }
+        
+        .popup-content {
+            background-color: #000;
+            color: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 500px;
+            border: 1px solid #333;
+        }
+        
+        .close-popup {
+            float: right;
+            cursor: pointer;
+            font-size: 24px;
+            margin-top: -20px;
+            margin-right: -20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="logo">neal.fun</div>
+    <div class="info-icon" id="infoIcon"><i class="fas fa-info-circle"></i></div>
+    <div class="sound-toggle" id="soundToggle"><i class="fas fa-volume-up"></i></div>
+    
+    <div class="game-container">
+        <div class="success-background" id="successBackground"></div>
+        <canvas id="gameCanvas"></canvas>
+        <div class="center-dot" id="centerDot"></div>
+        <div class="score-container" id="scoreContainer">0.0%</div>
+        <div class="instruction" id="instruction">Draw a circle around this</div>
+        <div class="best-score" id="bestScore">Best: 0.0%</div>
+    </div>
+    
+    <div class="popup" id="infoPopup">
+        <div class="popup-content">
+            <span class="close-popup" id="closePopup">&times;</span>
+            <h2 class="text-xl font-bold mb-4">About This Game</h2>
+            <p class="mb-3">This is a game that tests your circle drawing skills.</p>
+            <p class="mb-3">Try to draw a perfect circle and see how close you can get.</p>
+            <p class="mb-3">Click and hold to start drawing, then release to see your score.</p>
+            <p class="mb-3">The more perfect your circle, the higher your score will be!</p>
+        </div>
+    </div>
+    
+    <audio id="successSound" preload="auto">
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-achievement-bell-600.mp3" type="audio/mp3">
+    </audio>
+    
+    <audio id="failSound" preload="auto">
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-negative-guitar-tone-667.mp3" type="audio/mp3">
+    </audio>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // DOM Elements
+            const gameCanvas = document.getElementById('gameCanvas');
+            const ctx = gameCanvas.getContext('2d');
+            const centerDot = document.getElementById('centerDot');
+            const scoreContainer = document.getElementById('scoreContainer');
+            const instruction = document.getElementById('instruction');
+            const bestScore = document.getElementById('bestScore');
+            const successBackground = document.getElementById('successBackground');
+            const soundToggle = document.getElementById('soundToggle');
+            const infoIcon = document.getElementById('infoIcon');
+            const infoPopup = document.getElementById('infoPopup');
+            const closePopup = document.getElementById('closePopup');
+            const successSound = document.getElementById('successSound');
+            const failSound = document.getElementById('failSound');
+            
+            // Game state
+            let isDrawing = false;
+            let points = [];
+            let startPoint = null;
+            let sessionBestScore = 0;
+            let soundEnabled = true;
+            let gameReady = false;
+            
+            // Set canvas size
+            function resizeCanvas() {
+                gameCanvas.width = window.innerWidth;
+                gameCanvas.height = window.innerHeight;
+                
+                // Center the dot
+                const centerX = window.innerWidth / 2;
+                const centerY = window.innerHeight / 2;
+                centerDot.style.left = `${centerX - 4}px`;
+                centerDot.style.top = `${centerY - 4}px`;
+                
+                // Position the score
+                scoreContainer.style.left = `${centerX - 50}px`;
+                scoreContainer.style.top = `${centerY - 18}px`;
+                
+                // Position the instruction
+                instruction.style.left = `${centerX - 100}px`;
+                instruction.style.top = `${centerY + 20}px`;
+                
+                // Position the best score
+                bestScore.style.left = `${centerX - 70}px`;
+                bestScore.style.top = `${centerY + 20}px`;
+                
+                // Clear canvas on resize
+                if (gameReady) {
+                    ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+                }
+            }
+            
+            // Initialize
+            function init() {
+                resizeCanvas();
+                window.addEventListener('resize', resizeCanvas);
+                gameReady = true;
+                resetGame();
+                setupEventListeners();
+            }
+            
+            // Event listeners
+            function setupEventListeners() {
+                // Mouse events
+                gameCanvas.addEventListener('mousedown', startDrawing);
+                gameCanvas.addEventListener('mousemove', draw);
+                gameCanvas.addEventListener('mouseup', stopDrawing);
+                gameCanvas.addEventListener('mouseleave', cancelDrawing);
+                
+                // Touch events
+                gameCanvas.addEventListener('touchstart', handleTouchStart);
+                gameCanvas.addEventListener('touchmove', handleTouchMove);
+                gameCanvas.addEventListener('touchend', handleTouchEnd);
+                
+                // UI events
+                soundToggle.addEventListener('click', toggleSound);
+                infoIcon.addEventListener('click', showInfo);
+                closePopup.addEventListener('click', hideInfo);
+            }
+            
+            // Sound functions
+            function toggleSound() {
+                soundEnabled = !soundEnabled;
+                if (soundEnabled) {
+                    soundToggle.innerHTML = '<i class="fas fa-volume-up"></i>';
+                } else {
+                    soundToggle.innerHTML = '<i class="fas fa-volume-mute"></i>';
+                }
+            }
+            
+            function playSuccessSound() {
+                if (soundEnabled) {
+                    successSound.currentTime = 0;
+                    successSound.play();
+                }
+            }
+            
+            function playFailSound() {
+                if (soundEnabled) {
+                    failSound.currentTime = 0;
+                    failSound.play();
+                }
+            }
+            
+            // Info popup
+            function showInfo() {
+                infoPopup.style.visibility = 'visible';
+                infoPopup.style.opacity = '1';
+            }
+            
+            function hideInfo() {
+                infoPopup.style.opacity = '0';
+                setTimeout(() => {
+                    infoPopup.style.visibility = 'hidden';
+                }, 300);
+            }
+            
+            // Game functions
+            function resetGame() {
+                ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+                isDrawing = false;
+                points = [];
+                startPoint = null;
+                scoreContainer.style.display = 'none';
+                instruction.style.display = 'block';
+                bestScore.style.display = 'none';
+                successBackground.style.opacity = '0';
+            }
+            
+            function startDrawing(e) {
+                e.preventDefault();
+                if (e.buttons !== 1 && !e.touches) return; // Only proceed with left mouse button
+                
+                isDrawing = true;
+                points = [];
+                
+                const centerX = window.innerWidth / 2;
+                const centerY = window.innerHeight / 2;
+                const x = e.clientX || (e.touches[0].clientX);
+                const y = e.clientY || (e.touches[0].clientY);
+                
+                startPoint = { x, y };
+                points.push({ x, y });
+                
+                // Show score container
+                scoreContainer.style.display = 'block';
+                instruction.style.display = 'none';
+                bestScore.style.display = 'none';
+                
+                // Start drawing
+                ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+                ctx.lineWidth = 3;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+            }
+            
+            function draw(e) {
+                if (!isDrawing) return;
+                e.preventDefault();
+                
+                const x = e.clientX || (e.touches[0].clientX);
+                const y = e.clientY || (e.touches[0].clientY);
+                
+                points.push({ x, y });
+                
+                // Calculate and display current accuracy
+                const accuracy = calculateAccuracy();
+                updateScoreDisplay(accuracy);
+                
+                // Draw line with appropriate color
+                ctx.lineTo(x, y);
+                ctx.strokeStyle = getColorForAccuracy(accuracy);
+                ctx.stroke();
+                
+                // Start a new path to prevent overriding previous color
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+            }
+            
+            function stopDrawing(e) {
+                if (!isDrawing) return;
+                e.preventDefault();
+                
+                isDrawing = false;
+                
+                // Check if we have enough points and if the end is close to the start
+                if (points.length >= 20) {
+                    const lastPoint = points[points.length - 1];
+                    const dx = lastPoint.x - startPoint.x;
+                    const dy = lastPoint.y - startPoint.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // If end is close to start (closed circle)
+                    if (distance < 30) {
+                        const finalAccuracy = calculateAccuracy();
+                        // Play success sound and show background if score is good
+                        if (finalAccuracy >= 90) {
+                            playSuccessSound();
+                            successBackground.style.opacity = '0.3';
+                        } else {
+                            playSuccessSound();
+                        }
+                        
+                        // Update best score
+                        if (finalAccuracy > sessionBestScore) {
+                            sessionBestScore = finalAccuracy;
+                        }
+                        
+                        // Display best score
+                        bestScore.textContent = `Best: ${sessionBestScore.toFixed(1)}%`;
+                        bestScore.style.display = 'block';
+                    } else {
+                        playFailSound();
+                    }
+                } else {
+                    playFailSound();
+                }
+            }
+            
+            function cancelDrawing(e) {
+                if (isDrawing) {
+                    isDrawing = false;
+                    playFailSound();
+                }
+            }
+            
+            // Touch event handlers
+            function handleTouchStart(e) {
+                document.body.style.overflow = 'hidden'; // Prevent scroll
+                startDrawing(e);
+            }
+            
+            function handleTouchMove(e) {
+                draw(e);
+            }
+            
+            function handleTouchEnd(e) {
+                document.body.style.overflow = ''; // Allow scroll again
+                stopDrawing(e);
+            }
+            
+            // Utility functions
+            function calculateAccuracy() {
+                if (points.length < 10) return 0;
+                
+                // Find center of the drawn points
+                let sumX = 0, sumY = 0;
+                for (const point of points) {
+                    sumX += point.x;
+                    sumY += point.y;
+                }
+                const centerX = sumX / points.length;
+                const centerY = sumY / points.length;
+                
+                // Calculate average radius
+                let sumRadius = 0;
+                for (const point of points) {
+                    const dx = point.x - centerX;
+                    const dy = point.y - centerY;
+                    sumRadius += Math.sqrt(dx * dx + dy * dy);
+                }
+                const avgRadius = sumRadius / points.length;
+                
+                // Calculate variance from perfect circle
+                let sumVariance = 0;
+                for (const point of points) {
+                    const dx = point.x - centerX;
+                    const dy = point.y - centerY;
+                    const radius = Math.sqrt(dx * dx + dy * dy);
+                    const variance = Math.abs(radius - avgRadius) / avgRadius;
+                    sumVariance += variance;
+                }
+                const avgVariance = sumVariance / points.length;
+                
+                // Calculate circularity - higher is better
+                const circularity = 1 - avgVariance;
+                
+                // Calculate aspect ratio of the bounding box
+                let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                for (const point of points) {
+                    minX = Math.min(minX, point.x);
+                    maxX = Math.max(maxX, point.x);
+                    minY = Math.min(minY, point.y);
+                    maxY = Math.max(maxY, point.y);
+                }
+                const width = maxX - minX;
+                const height = maxY - minY;
+                const aspectRatio = Math.max(width, height) / Math.min(width, height);
+                const aspectScore = 1 - Math.min(1, (aspectRatio - 1) / 0.5);
+                
+                // Calculate final score (0-100)
+                const rawScore = ((circularity * 0.7) + (aspectScore * 0.3)) * 100;
+                return Math.max(0, Math.min(99.9, rawScore)); // Cap at 99.9%
+            }
+            
+            function updateScoreDisplay(accuracy) {
+                scoreContainer.textContent = `${accuracy.toFixed(1)}%`;
+                
+                // Adjust size based on score
+                let fontSize = 24; // Base font size
+                if (accuracy >= 90) {
+                    fontSize = 30;
+                } else if (accuracy >= 80) {
+                    fontSize = 28;
+                } else if (accuracy >= 70) {
+                    fontSize = 26;
+                }
+                scoreContainer.style.fontSize = `${fontSize}px`;
+            }
+            
+            function getColorForAccuracy(accuracy) {
+                if (accuracy >= 95) {
+                    return '#00ff00'; // Green for high accuracy
+                } else if (accuracy >= 80) {
+                    return '#ffff00'; // Yellow for medium accuracy
+                } else {
+                    return '#ff0000'; // Red for low accuracy
+                }
+            }
+            
+            // Start the game
+            init();
+        });
+    </script>
+</body>
+</html>
